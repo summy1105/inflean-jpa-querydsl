@@ -1,0 +1,1 @@
+# inflean-jpa-querydsl
