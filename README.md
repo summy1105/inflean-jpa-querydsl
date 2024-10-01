@@ -1,1 +1,1 @@
-# inflean-jpa-querydsl
+# inflearn-jpa-querydsl
