@@ -163,7 +163,7 @@ public class JpaMain {
         Member member = new Member();
         member.setUsername("member1");
 //        member.setTeamId(team.getId());
-        member.changeTeam(team);
+//        member.changeTeam(team);
         entityManager.persist(member);
 
         entityManager.flush();
@@ -173,14 +173,14 @@ public class JpaMain {
 //        Long teamId = findMember.getTeamId();
 //        Team findTeam = entityManager.find(Team.class, teamId);
 
-        Team findTeam = findMember.getTeam();
-        System.out.println(findTeam);
+//        Team findTeam = findMember.getTeam();
+//        System.out.println(findTeam);
 
         Team team2 = new Team();
         team2.setName("TeamB");
-        findMember.changeTeam(team2);
+//        findMember.changeTeam(team2);
 
-        entityManager.persist(findTeam);
+//        entityManager.persist(findTeam);
         entityManager.persist(team2);
     }
 
@@ -191,7 +191,7 @@ public class JpaMain {
 
         Member member1 = new Member();
         member1.setUsername("member1");
-        member1.changeTeam(team);
+//        member1.changeTeam(team);
         team.getMembers().add(member1); // 양쪽에 참조 값을 추가하는게 제일 좋은 방법이다
         entityManager.persist(member1);
 
@@ -205,7 +205,7 @@ public class JpaMain {
 
         Member member3 = new Member();
         member3.setUsername("member3");
-        member3.changeTeam(team);
+//        member3.changeTeam(team);
 //        team.getMembers().add(member3);// team member에 추가를 하지 않으면 영속성 컨텍스트에 update가 안됨
         entityManager.persist(member3);
 
@@ -217,8 +217,8 @@ public class JpaMain {
         entityManager.clear();
 
         Member findMember = entityManager.find(Member.class, member1.getId());
-        List<Member> members = findMember.getTeam().getMembers();
+//        List<Member> members = findMember.getTeam().getMembers();
 
-        members.stream().forEach(m-> System.out.println("member name = "+ m.getUsername()));
+//        members.stream().forEach(m-> System.out.println("member name = "+ m.getUsername()));
     }
 }

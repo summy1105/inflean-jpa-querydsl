@@ -1,9 +1,9 @@
 package jpabook.jpashop.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class Item {
@@ -16,4 +16,10 @@ public class Item {
     private int price;
     private int stockQuantity;
 
+    @ManyToMany(mappedBy = "items")
+//    @JoinTable(name = "CATEGORY_ITEM"
+//            , joinColumns = @JoinColumn(name = "ITEM_ID")
+//            , inverseJoinColumns = @JoinColumn(name = "CATEGORY_ID")
+//    )
+    private List<Category> categories = new ArrayList<>();
 }
