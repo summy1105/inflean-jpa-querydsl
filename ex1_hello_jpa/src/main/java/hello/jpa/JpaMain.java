@@ -24,7 +24,9 @@ public class JpaMain {
 //            executeFlush(entityManager);
 //            executeDetach(entityManager);
 //            executeClear(entityManager);
-            sequenceKeyTest(entityManager);
+//            sequenceKeyTest(entityManager);
+//            teamNMember_ManyToOne(entityManager);
+            teamNMember_OneToMany(entityManager);
 
             tx.commit();
         } catch (Exception e) {
@@ -151,7 +153,72 @@ public class JpaMain {
         entityManager.persist(member3); // id 3
         System.out.println("member3.id = " + member3.getId());
         System.out.println("after persist ===============");
+    }
+
+    private static void teamNMember_ManyToOne(EntityManager entityManager) {
+        Team team = new Team();
+        team.setName("TeamA");
+        entityManager.persist(team);
+
+        Member member = new Member();
+        member.setUsername("member1");
+//        member.setTeamId(team.getId());
+        member.changeTeam(team);
+        entityManager.persist(member);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Member findMember = entityManager.find(Member.class, member.getId());
+//        Long teamId = findMember.getTeamId();
+//        Team findTeam = entityManager.find(Team.class, teamId);
+
+        Team findTeam = findMember.getTeam();
+        System.out.println(findTeam);
+
+        Team team2 = new Team();
+        team2.setName("TeamB");
+        findMember.changeTeam(team2);
+
+        entityManager.persist(findTeam);
+        entityManager.persist(team2);
+    }
+
+    private static void teamNMember_OneToMany(EntityManager entityManager) {
+        Team team = new Team();
+        team.setName("TeamA");
+        entityManager.persist(team);
+
+        Member member1 = new Member();
+        member1.setUsername("member1");
+        member1.changeTeam(team);
+        team.getMembers().add(member1); // 양쪽에 참조 값을 추가하는게 제일 좋은 방법이다
+        entityManager.persist(member1);
+
+//
+        Member member2 = new Member();
+        member2.setUsername("member2");
+//        member2.setTeam(team);
+        team.getMembers().add(member2);// 디비에 매핑 안됨
+        entityManager.persist(member2);
 
 
+        Member member3 = new Member();
+        member3.setUsername("member3");
+        member3.changeTeam(team);
+//        team.getMembers().add(member3);// team member에 추가를 하지 않으면 영속성 컨텍스트에 update가 안됨
+        entityManager.persist(member3);
+
+
+        team.getMembers().stream().forEach(m-> System.out.println("member name = "+ m.getUsername()));
+        System.out.println();
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Member findMember = entityManager.find(Member.class, member1.getId());
+        List<Member> members = findMember.getTeam().getMembers();
+
+        members.stream().forEach(m-> System.out.println("member name = "+ m.getUsername()));
     }
 }

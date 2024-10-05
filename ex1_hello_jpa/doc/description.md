@@ -118,7 +118,39 @@ DDL 생성기능은 DDL을 자동 생성할 때만 사용되고, JPA의 실행 �
    3. 권장 : Long형 + 대체키 + 키 생성전략 사용
    4. 비즈니스의 내용을 키로 가져오는 것을 권장하지 않음
 
-
+#
+### 연관 관계 매핑
+   1. 단방향 연관관계 : @ManyToOne
+   2. 양방향 연관관계 : @ManyToOne + @OneToMany(mappedBy = "team")  - Many=Member, One=Team
+      1. mappedBy에는 Many가 되는 엔티티의 필드이름을 지정
+      2. 객체에서는 단방향 관계 2개가 서로 엮여 있음
+      3. 양방향 매핑시에 무한 루프를 조심하자 : ex. toString(), lombok, JSON 생성 라이브러리
+         1. Spring Controller에서 entity를 반환하지 않게 한다 entity를 dto로 바꿔서 사용하자
+      4. Many에 해당하는 entity의 fk 업데이트 문제가 있음
+         1. Member의 Team이 변경 or Team의 member list에서 remove, add 할 때 해야하는지?
+         2. 결론 : 둘 중 하나로 fk를 관리해야함 => 둘 중 하나를 연관관계의 주인으로 지정해야함
+      5. (**_중요_**) 연관관계의 Owener
+         1. 연관관계의 주임만이 외래 키를 관리(등록, 수정)
+         2. 주인이 아닌쪽은 읽기만 가능 ( Team에서는 members를 읽기에만 사용한다. )
+         3. 주인은 mappedBy 속성을 사용하지 않음
+         4. 주인이 아니면 mappedBy 속성으로 주인 Entity의 필드 참조객체 지정
+      6. **_가장 많이 하는 실수는 연관관계 주인에 값을 입력하지 않는 것_**
+      7. 양쪽 entity에 참조값을 set해주는게 가장 베스트한 방법이다.
+         1. 영속성 컨텍스트와 DB에 전부 값을 update를 해야함.
+         2. 주인 entity의 field set method를 따로 편리하게 변경해 주는것이 좋다
+         3. ``` java
+             public void changeTeam(Team team) {
+                if (this.team != null) {
+                  this.team.getMembers().remove(this);
+                }
+                this.team = team;
+                this.team.getMembers().add(this);
+             }
+            ```
+   3. 정리
+      1. 단방향 매핑만으로도 이미 연관관계 매핑은 완료 => 단방향 매핑으로 설계
+      2. JPQL에서는 역방향으로 탐색할 일이 많음(entity로 데이터를 가져올때) : 양방향은 조회가 필요한 부분에서 사용
+      3. 단방향 매핑을 잘하고 양방향은 필요할 때 추가하자
 
 
 
