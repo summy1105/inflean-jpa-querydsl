@@ -1,6 +1,7 @@
 package jpabook.jpashop;
 
 import jakarta.persistence.*;
+import jpabook.jpashop.domain.Book;
 import jpabook.jpashop.domain.Order;
 import jpabook.jpashop.domain.OrderItem;
 
@@ -12,9 +13,8 @@ public class JpaMain {
         EntityTransaction tx = entityManager.getTransaction();
         tx.begin();
         try {
-
-
-
+//            makeNewOrder(entityManager);
+            makeNewBook(entityManager);
             tx.commit();
         } catch (Exception e) {
             tx.rollback();
@@ -32,5 +32,13 @@ public class JpaMain {
         orderItem1.setOrder(order);
 
 //        order.addOrderItem(orderItem1);
+    }
+
+    static private void makeNewBook(EntityManager entityManager) {
+        Book book = new Book();
+        book.setName("JPA");
+        book.setAuthor("김영한");
+
+        entityManager.persist(book);
     }
 }

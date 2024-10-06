@@ -175,6 +175,45 @@ DDL 생성기능은 DDL을 자동 생성할 때만 사용되고, JPA의 실행 �
         - 객체는 다대다 관계가 가능하지만, 추천하지 않는다.
         - 여러 데이터가 들어 올 수 있으므로, 중간테이블이 결국 entity가 됨
 
+#
+### 상속관계 매핑
+1. RDB에는 슈퍼타입 서브타입 관계라는 모델링 기법이 객체 상속과 유사
+   1. @Inheritance(strategy)
+   2. @DiscriminatorColumn : 부모 엔티티에 설정, 부모 엔티티 테이블에 type을 나타내는 컬럼이 생기고 entity명이 입력됨
+   3. @DiscriminatorValue : 자식 엔티티에 설정, 부모 엔티티 테이블의 type컬럼에 엔티티 명대신, 저장될 값을 지정
+2. 종류
+   1. 단일 테이블 전략 : 한 테이블에 다 합쳐버림 => default 
+      - @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+      - DTYPE 컬럼이 기본으로 생성됨(@DiscriminatorColumn이 기본)
+      - 장점 : 조인 X, 조회 성능이 빠름
+      - 단점 : 자식 엔티티에 해당하는 컬럼들은 모두 null허용을 해야함(무결성X), 테이블이 커질수 있고, 상황에 따라서, 조회성능이 오히려 느려질 수 있다.
+      ![poster](./image/inheritance-rdb-single-table.png)
+   2. 조인 전략 : 공통데이터(슈퍼타입) 테이블과 그 특별한 데이터(서브타입) 테이블을 분리해서 조인으로 데이터를 가져옴
+      - @Inheritance(strategy = InheritanceType.JOINED)
+      - 기본 정석 방식이라고 추천함
+      - 장점 : 테이블 정규화, 외래 키 참조 무결성 제약조건 활용가능, 저장공간 효율화
+      - 단점 : 조회시 조인을 많이 사용, 성능저하, 조회 쿼리가 복잡, 데이터 저장시 insert 2번 호출
+      ![poster](./image/inheritance-rdb-join.png)
+   3. 구현 클래스마다 테이블 매핑 전략
+       - @Inheritance(strategy = InheritanceType.TABLE_PER_CLASS)
+       - 추천하지 않음 => 서로 묶이지 않음
+       - 장점 : 서브 타입을 명확하게 구분해서 처리할 때 효과적, not null 제약조건 사용 가능
+       - 단점 : 부모타입으로 조회할 경우, union으로 모든 테이블 데이터를 조회함 -> 느림
+      ![poster](./image/inheritance-rdb-table-per-class.png)
+
+### @MappedSuperclass
+1. 공통 매핑 정보가 필요할 때 사용(id, name)
+2. DB랑 관련없이 객체에서 공통적인 부분을 사용하고 싶을 때, 사용
+   ![poster](./image/mapped-superclass.png)
+3. 상속관계 매핑X
+4. 엔티티X, 테이블과 매핑X
+5. 부모클래스를 상속 받는 자식클래스에 매핑 정보만 제공
+6. 조회 검색 불가(em.find(BaseEntity.class) 불가)
+7. 직접 생성해서 사용할 일이 없으므로 추상 클래스 권장
+8. 테이블과 관계 없고, 단순히 엔티티가 공통으로 사용하는 매핑 정보를 모으는 일
+9. 주로 등록일, 수정일, 등록자, 수정가 같은 전체 엔티티에서 공통으로 적용하는 정보를 모을 때 사용
+10. 참고 : @Entity 클래스는 엔티티나 @MappedSuperclass로 지정한 클래스만 상속가능 
+
 
 
 
