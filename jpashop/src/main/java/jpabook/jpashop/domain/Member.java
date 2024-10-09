@@ -12,9 +12,9 @@ public class Member extends BaseEntity{
     @Column(name="MEMBER_ID")
     private Long id;
     private String name;
-    private String city;
-    private String street;
-    private String zipcode;
+
+    @Embedded
+    private Address address;
 
     @OneToMany(mappedBy = "member")
     private List<Order> orders = new ArrayList<>(); // 연관관계를 끊어내는게 좋다. -> 딱히 좋은 설계는 아님 예제로 추가함

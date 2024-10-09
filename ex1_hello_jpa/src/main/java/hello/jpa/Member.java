@@ -1,10 +1,14 @@
 package hello.jpa;
 
+import hello.jpa.embeddable.Address;
+import hello.jpa.embeddable.Period;
 import jakarta.persistence.*;
 import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 //@Table(name = "MBR")
@@ -34,11 +38,12 @@ public class Member {
 //    @Column(name = "TEAM_ID")
 //    private Long teamId;
 
-    @ManyToOne(fetch = FetchType.LAZY) // Many : member , One : team
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.PERSIST) // Many : member , One : team
+//    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "TEAM_ID")
     private Team team;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "LOCKER_ID")
     private Locker locker;
 
@@ -48,6 +53,38 @@ public class Member {
 
     @OneToMany(mappedBy = "member")
     private List<MemberProduct> memberProducts = new ArrayList<>();
+
+    @Embedded
+    private Period workPeriod;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "city", column = @Column(name = "HOME_CITY"))
+            , @AttributeOverride(name = "street", column = @Column(name = "HOME_STREET"))
+            , @AttributeOverride(name = "zipcode", column = @Column(name = "HOME_ZIPCODE"))
+    })
+    private Address homeAddress;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "FAVORITE_FOODS", joinColumns = @JoinColumn(name="MEMBER_ID"))
+    @Column(name = "FOOD_NAME")
+    private Set<String> favoriteFoods = new HashSet<>();
+
+//    @ElementCollection // default LAZY
+//    @CollectionTable(name = "MEMBER_ADDRESS_HISTORY", joinColumns = @JoinColumn(name = "MEMBER_ID"))
+//    private List<Address> addressHistory = new ArrayList<>();
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "MEMBER_ID")
+    private List<MemberAddressHistory> addressHistory = new ArrayList<>();
+
+//    @Embedded
+//    @AttributeOverrides({
+//            @AttributeOverride(name = "city", column = @Column(name = "WORK_CITY"))
+//            , @AttributeOverride(name = "street", column = @Column(name = "WORK_STREET"))
+//            , @AttributeOverride(name = "zipcode", column = @Column(name = "WORK_ZIPCODE"))
+//    })
+//    private Address workAddress;
 
 //    @Column(columnDefinition = "INTEGER default -1")
 //    private Integer age;
@@ -89,5 +126,32 @@ public class Member {
         }
         this.team = team;
         this.team.getMembers().add(this);
+    }
+
+    public Team getTeam() {
+        return team;
+    }
+
+    public void setTeam(Team team) {
+        this.team = team;
+    }
+
+    public void printMemberAndTeam() {
+        System.out.println("start print ===========");
+        System.out.println("member id = " + this.getId());
+
+        String username = this.getUsername();
+        System.out.println("username = " + username);
+
+        Team team = this.getTeam();
+        System.out.println("team name = " + team.getName());
+    }
+
+    public void setWorkPeriod(Period period) {
+        this.workPeriod = period;
+    }
+
+    public void setHomeAddress(Address address) {
+        this.homeAddress = address;
     }
 }
