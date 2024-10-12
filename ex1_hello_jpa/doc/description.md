@@ -385,11 +385,227 @@ CascadeType.All + orphanRemoval=true
   - 식별자가 필요하고, 지속해서 값을 추적, 변경해야 한다면 그것은 값 타입이 아닌 엔티티로 하자
 
 
+# 객체지향 쿼리 언어
+- JPA의 다양한 쿼리 방법 : JPQL, JPA Criteria, QueryDSL, Native SQL, JDBC api 직접사용, MyBatis, SpringJdbcTemplate 함꼐 사용
 
+### JPQL(Java Persistence Query Language)
+- 가장 단순한 조회 방법
+  - EntityManager.find()
+  - 객체 그래프 탐색(a.getB().getC())
+- JPA 사용 단점
+  - 문제는 검색 쿼리 이다.
+  - 검색을 할 때도 테이블이 아닌 엔티티 객체를 대상으로 검색, 모든 DB 데이터를 객체로 변환해서 검색하는 것은 불가능
+  - 애플리케이션이 필요한 데이터만 DB에서 불러오려면 결국 검색 조건이 포함된 SQL이 필요하다.
+- ANSI(American National Standards Institute - 미국국가표준협회) 표준 SQL문법 지원
+- 엔티티 객체를 대상으로 쿼리 <-> SQL은 DB 테이블을 대상으로 쿼리
+- SQL을 추상화해서 특정 데이터베이스 SQL에 의존 X
+- JPQL을 한마디로 정의 하면 객체지향 SQL
+- 동적 쿼리 작성에 어려움
 
+### Criteria 소개
+- 문자가 아닌 자바코드로 JPQL을 작성, JPQL 빌더 역할, 공식 기능
+- 장점
+  - 동적쿼리 생성하기 유용
+  - 문법 오류를 컴파일 시점에서 잡음
+- 단점
+  - SQL 문법과 너무 다름, 유지보수의 어려움, 너무 복잡 & 실용성이 없음
 
+### QueryDSL
+- 문자가 아닌 자바코드로 JPQL을 작성할 수 있음
+- jpql 빌더역할
+- 컴파일 시점에 문법 오류를 찾을 수 있음
+- 동적쿼리 작성 편리함
+- 단순하고 쉬움, 실무 사용 권장
 
+### 네이티브 SQL
+- jpa가 제공하는 sql을 직접 사용하는 기능
+- jpql로 해결할 수 없는 특정 데이터베이스에 의존적인 기능
+- ex. 오라클 CONNECT BY, 특정 DB만 사용하는 SQL힌트
 
+### JDBC 직접 사용, SpringJdbcTemplate등
+- jpa를 사용하면서 jdbc 커넥션을 직접 사용하거나, 스프링 JdbcTemplate, 마이바티스등을 함께 사용 가능
+- 단 영속성 컨텍스트를 적절한 시점에 강제로 플러시 필요
+  - 한 트랜잭션에선 native query가 실행될때, flush가 자동으로 실행(repeatable read)
+  - 그러나 다른 orm을 사용하는 등 다른 connection을 이용하여 조회할 때, 예상한 data가 read되지 않을 수 있다. 그래서 중간에 flush실행 필요
+  - ex. jpa를 우회해서 sql을 실행하기 직전에 영속성 컨텍스트 수동 flush
 
+# JPQL
+- 객체지향 쿼리 언어, 테이블을 대상으로 쿼리하는 것이 아니라 **엔티티 객체를 대상으로 쿼리**한다.
+- SQL을 추상화해서 특정 데이터베이스 SQL에 의존하지 않는다. 각각의 DB에 맞게 SQL로 변환
 
+### 문법
+- select m from Member as m where m.age>18
+- 엔티티와 속성은 대소문자 구분함 (Member, age)
+- JPQL 키워드는 대소문자 구분X(select, from, where)
+- 엔티티 이름 사용, 테이블 이름 아님(Member)
+- 별칭은 필수(m) (as는 생략가능)
+- 집합과 정렬 함수 제공됨 : count(), sum(), avg(), max(), min()
+- group by, having, order by
 
+### TypeQuery, Query
+- TypeQuery : 반환 타입이 명확할 때 사용
+  ``` java
+  TypedQuery<Member> query = EntityManager.createQuery("select m from Member m", Member.class);
+  ```
+- Query : 반환 타입이 명확하지 않을 때 사용
+  ``` java
+  Query query = EntityManager.createQuery("select m.username, m.age from Member m");
+  ```
+
+### 결과 조회 API
+- query.getResultList() : 결과가 하나 이상일 때, 리스트 반환
+  - 결과가 없으면 빈 리스트 반환
+- query.getSingleResult() : 결고가 정확히 하나, 단일 객체 반환
+  - 결과가 없으면 : javax.persistence.NoResultException -> Spring Data JPA에서는 null혹은 optional.empty 반환
+  - 둘 이상이면 : javax.persistence.NonUniqueResultException
+
+### 파라미터 바인딩 - 이름 기준, 위치 기준
+- 이름 기준
+    ``` java
+  TypedQuery<Member> typedQuery1 = entityManager.createQuery("select m from Member m where m.username=:username", Member.class);
+  typedQuery1.setParameter("username", "kim"); 
+  ```
+
+- 위치 기준 : 추천 안함
+    ```java
+  TypedQuery<Member> typedQuery1 = entityManager.createQuery("select m from Member m where m.username=?1", Member.class);
+  typedQuery1.setParameter(1, "kim");
+    ```
+### 프로젝션(Projection)
+- SELECT 절에 조회할 대상을 대상을 지정하는 것
+- 프로젝션 대상 : 엔티티, 임베디드 타입, 스칼라 타입(숫자, 문자등 기본 데이터 타입)
+  - SELECT m FROM Member m-> 엔티티 프로젝션
+  - SELECT m.team FROM Member m -> 엔티티 프로젝션 : 묵시적 조인 방법 이라 사용을 지양한다.
+  - SELECT m.address FROM Member m -> 임베디드 타입 프로젝션
+  - SELECT m.username, m.age FROM Member m -> 스칼리 타입 프로젝션
+  - DISTINCT로 중복제거
+- 엔티티 프로젝션 대상으로 조회되는 엔티티는 영속성 컨텍스트에서 관리됨
+- 여러 값 조회
+    SELECT m.username, m.age FROM Member m
+  1. Query 타입으로 조회
+  2. Object[] 타입으로 조회 
+      ``` java
+        List<Object[]> resultList2 = entityManager.createQuery("select m.username, m.age from Member m")
+                .getResultList();
+      ```
+  3. new 명령어로 조회
+     - 단순 값을 DTO로 바로 조회
+     - DTO객체의 패키지 명을 포함한 전체 클래스 명 입력
+     - 순서와 타입이 일치하는 생성자 필요
+     ```java
+        List<MemberDto> dtoList = entityManager.createQuery("select new hello.jpql.dto.MemberDto(m.username, m.age) from Member m", MemberDto.class)
+                .getResultList();
+     ```
+
+### 페이징 API
+- JPA는 페이징을 다음 두 API로 추상화
+- setFirstResult(int startPosition) : 조회 시작 위치(0부터 시작)
+- setMaxResult(int maxResult) : 조회할 데이터 수
+  ```java
+    String jpqlStr = "select m from Member m order by m.age desc";
+        List<Member> resultList = entityManager.createQuery(jpqlStr, Member.class)
+                .setFirstResult(5)
+                .setMaxResults(10)
+                .getResultList();
+  ```
+  
+### 조인
+- 내부조인 : SELECT m FROM Member m [INNER] JOIN m.team t
+- 외부조인 : SELECT m FROM Member m LEFT [OUTER] JOIN m.team t
+- 세타조인 : select count(m) from Member m, Team t where m.username = t.name
+
+### 조인 - ON 절
+- ON절을 활용한 조인(JPA 2.1부터 지원)
+- 조인 대상 필터링 가능
+- 연관관계 없는 엔티티 외부 조인(하이버네이트 5.1부터)
+- 조인 대상 필터링
+  회원과 팀을 조인하면서, 팀 이름이 A인 팀만 조인
+  - SQL : ``` SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.TEAM_ID = t.id and t.name = 'A' ```
+  - JPQL : ``` SELECT m, t FROM Member m LEFT JOIN m.team t on t.name = 'A' ```
+- 연관관계 없는 엔티티 외부 조인
+  회읜의 이름과 팀의 이름이 같은 대상 외부 조인
+  - SLQ : ``` SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.,username = t.name ```
+  - JPQL : ``` SELECT m, t FROM Member m LEFT JOIN Team t on m.username = t.name ```
+
+### 서브 쿼리
+- 나이가 평균보다 많은 회원
+  ``` select m from Member m where m.age > (select avg(m2.age) from Member m2) ```
+- 한 건이라도 주문한 고객
+  ``` select m from Member m where (select count(o) from Order o where m = o.member) > 0 ```
+- 지원 함수
+  - [NOT] EXISTS (subquery) : 서브 쿼리에 결과가 존재하면 참
+    ``` select m from Member m where exists(select t from m.team t where t.name = 'teamA') ```
+    - {ALL | ANY | SOME} (subquery)
+    - ALL : 모두 만족하면 참
+      ``` select o from Order o where o.orderAmount > ALL(select p.stockAmount from Product p) ```
+    - ANY, SOME : 같은 의미, 조건을 하나라도 만족하면 참
+      ```  select m from Member m where m.team = ANY(select t from Team t) ```
+  - [NOT] IN (subquery) : 서브쿼리의 결과 중 하나라도 같은 것이 있으면 참
+- JPA 서브 쿼리 한계
+  - WHERE, HAVING 절에서만 서브 쿼리 사용 가능
+  - SELECT 절도 가능(하이버네이트에서 지원)
+  - FROM 절의 서브쿼리는 현재 JPQL에서 불가능
+    - 조인으로 풀 수 있으면 풀어서 해결 or 쿼리를 2번 이상 사용
+
+### JPQL 타입 표현 등
+- 문자 : 'HELLO', 'She''s'
+- 숫자 : 10L(Long), 10D(double), 10F(Float)
+- Boolean : TURE, FALSE
+- ENUM : jpabook.MemberType.Admin(패키지명 포함)
+- 엔티티 타입 : TYPE(m) = Member(상속 관계에서 사용)
+    ex) Item과 Book이 상속 관계일때,
+    ```jpaql
+      select i from Item i where type(i) = Book
+    ```
+- AND, OR, NOT
+- =, >=, >, <, <=, <>
+- BETWEEN, LIKE, IS NULL
+
+### JPQL 조건식
+- CASE
+  1. 기본
+  ```jpaql
+    select
+        case when m.age <= 10 then '학생요금'
+        case when m.age >= 60 then '경로요금'
+        else '일반요금'
+    from Member m
+  ```
+  2. 단순
+  ```jpaql
+    select
+        case t.name
+            when '팀A' then '인센티브110%'
+            when '팀B' then '인센티브120%'
+            else '인센티브105%'
+        end
+    from Team t
+  ```
+  3. COALESCE : 하나씩 조회해서 null이 아니면 반환   
+    사용자 이름이 없으면 이름 없는 회원을 반환
+    ```jpaql
+        select coalesce(m.username, '이름 없는 회원') from Member m 
+    ```
+  4. NULLIF : 두 값이 같으면 null 반환, 다르면 첫번째 값 반환   
+     사용자 이름이 '관리자'면 null을 반환하고 나머지는 본인의 이름을 반환
+    ```jpaql
+        select NULLIF(m.username, '관리자') from Member m
+    ```
+
+### JPQL 기본 함수
+- CONCAT
+- SUBSTRING
+- TRIM
+- LOWER, UPPER
+- LENGTH
+- LOCATE : 문자열 시작 위치 찾아줌
+- ABS, SQRT, MOD
+- SIZE : 켈렉션의 갯수 ``` select size(t.members) from Team t``` 
+- INDEX(JPA 용도)
+
+### 사용자 정의 함수 호출
+- 하이버네이트는 사용전 방언에 추가해야한다.
+  - 사용하는 DB 방언을 상속받고, 사용자 정의 함수를 등록한다.
+  ```jpaql
+    select function('group_concat', i.name) from Item i
+  ```
