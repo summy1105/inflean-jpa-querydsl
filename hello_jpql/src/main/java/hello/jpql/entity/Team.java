@@ -4,6 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ public class Team {
     private Long id;
     private String name;
 
+//    @BatchSize(size = 3) // 한 쿼리로 가져올때, 컬렉션을 가져올 팀 엔티티의 갯수 -> 3개의 팀의 해당되는 멤버들을 가져온다.
     @OneToMany(mappedBy = "team")
     private List<Member> members = new ArrayList<>();
 

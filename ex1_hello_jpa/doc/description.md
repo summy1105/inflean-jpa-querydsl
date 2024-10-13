@@ -609,3 +609,280 @@ CascadeType.All + orphanRemoval=true
   ```jpaql
     select function('group_concat', i.name) from Item i
   ```
+
+### 경로 표현식(path expression)
+- .(점)을 찍어 객체 그래프를 탐색하는 것
+    ```` jpaql
+    select m.username -> 상태필드
+    from Mmeber m
+        join m.team t -> 단일 값 연관 필드
+        join m.orders o -> 컬렉션 값 연관필드
+    where t.name = '팀A'
+    ````
+- 용어 정리
+  - 상태 필드(state filed) : 단순히 값을 저장하기 위한 필드 (ex. m.username)
+  - 연관 필드(association field) : 연관관계를 위한 필드
+    - 딘일 값 연관 필드 : @ManyToOne, @OneToOne, 대상이 엔티티 (ex. m.team)
+    - 컬렉션 값 연관 필드 : @OneToMany, @ManyToMany, 대상이 컬렉션 (ex. m.orders)
+- 특징
+    - 상태 필드(state filed) : 경로 탐색의 끝, 탐색 X
+    - 딘일 값 연관 필드 : **_묵시적 내부 조인(inner join) 발생_**, 탐색O
+    - 컬렉션 값 연관 필드 : 묵시적 내부 조인 발생, 탐색 X
+      - FROM 절에서 명시적 조인을 통해 별칭을 얻으면 별칭을 통해 탐색 가능
+- 에제
+  ```jpaql
+    select o.member.team
+    from Orders o 
+  
+    select t.emember from Team
+  
+    select t.member.username from Team t //에러
+  
+    select m.username from Team t join t.members m // 성공
+  ```
+- 주의 : 묵시적 내부 조인은 성능에 영향이 크기 때문에 조심해야 한다.
+    - 명시적 조인 : join 키워드 직접 사용
+        - ``` select m from Member m join m.team t ```
+    - 묵시적 조인 : 경로 표현식에 의해 묵시적으로 SQL조인 발생(내부 조인만 가능)
+        - ``` select m.team from Member m ```
+    - 묵시적 조인은 항상 내부 조인이다.
+    - 컬렉션은 경로 탐색의 끝, 명시적 조인을 통해 별칭을 얻어야 함
+    - 경로 탐색은 주로 SELECT, WHERE절에서 사용하지만 묵시적 조인으로 인해 SQL의 FROM(JOIN)절에 영향을 줌
+- **실무조언**
+  - **_가급적 묵시적 조인 대신 명시적 조인 사용_**
+  - 조인은 SQL 튜닝에 중요 포인트
+  - 묵시적 조인은 조인이 일어나는 상황을 한눈에 파악하기 어려움
+
+
+#
+### fetch join - 살무에서 매우매우 중요
+- SQL 조인 종류X
+- JPQL에서 성능 최적화를 위해 제공하는 기능
+- 연관된 엔티티나 컬렉션을 SQL 한 번에 함께 조회하는 기능
+- join fetch 명령어 사용
+- [LEFT [OUTER]| INNER] JOIN FETCH 조인 경로
+
+### entity fetch join
+- 회원을 조회하면서 연관된 팀도 함계 조회(SQL 한 번에) : 즉시 로딩과 유사1₩
+- SQL을 보면 회원 뿐만 아니라 팀(T.*)도 함께 SELECT 
+  - [SQL] : ``` SELECT M.*, T.* FROM MEMBER M INNER JION TEAM T ON M.TEAM_ID = T.ID ```
+  - [JPQL] : ``` select m from Member m join fetch m.team ```
+    ![poster](./image/fetch-join-entity.png)
+  ```java
+    String query = "select m from Member m join fetch m.team t";
+
+    List<Member> resultList = entityManager.createQuery(query, Member.class)
+                             .getResultList();
+  ```
+  
+### collection fetch join
+- 일대다 관계, 컬렉션 페치 조인 -> Hibernate 5까지는 team의 entity가 중복으로 생겼지만 6부터 중복제거가 기본값
+- [SLQ]
+  ```sql
+    SELECT T.*, M.*
+    FROM TEAM T 
+        INNER JOIN MEMBER M ON T.ID = M.TEAM_ID
+    WHERE T.NAME = '팀A' 
+  ```
+- [JPQL]
+  ```jpaql
+    select t
+    from Team t join fetch t.members
+    where t.name = '팀A' 
+  ```
+- 페치조인과 DISTINCT
+  - distinct 사용 
+  - ``` select distinct t from Team t join fetch t.members ```
+- 다대일은 중복으로 엔티티가 생기지 않는다.
+
+### 페치조인과 일반 조인과의 차이
+- 일반 조인은 실행시 연관된 엔티티를 함께 조회하지 않음
+- select로 가져오는 값은 선언된 엔티티만 -> Team 엔티티만 가져옴
+  ``` select t from Team t join t.members m```
+- JPQL은 결과를 반환할 떄 연관관계 고려X
+- 단지 SELECT 절에 지정한 엔티티만 조회할 뿐
+- 여기서는 팀 엔티티만 조회하고, 회원 엔티티는 조회X
+- 페치 조인을 사용할 떄만 연관된 엔티티도 함께 조회(즉시 로딩)
+- **페치 조인은 객체 그래프를 SQL 한번에 조회하는 개념**
+- 한계
+  - **페치 조인 대상에는 별칭을 줄 수 없다**
+    - ex. ``` select t from Team t join fetch t.mameber as m where m.username = 'memberA' ``` : member를 필터링 할 수 없다. team 엔티티의 members의 컬렉션이 실제 DB값과 달라지게 구성된다.
+    - jpa 설계 의도는 엔티티의 컬렉션 타입으로 모든 해당 데이터를 접근하는 것이다. 그리고 조회 되지 않는 데이터가 삭제 될 수도 있다.
+    - 하이버네이트는 가능, 가급적 사용X
+  - **둘 이상의 컬렉션은 페치 조인 할 수 없다.**
+  - **컬렉션을 페치 조인하면 페이징 API(setFirstResult, setMaxResults)를 사용할 수 없다.**
+    - ~~팀 한개만 조회되고, 멤버도 한개만 조회 되면, 팀의 컬렉션에는 멤버 엔티티가 한개만 있는 것으로 데이터를 가져옴~~ : 하이버네이트의 6버전에서는 members의 컬렉션이 완전하지 않아서 getMembers를 할 때, 다시 Member entity를 가져옴 
+    - 일대일, 다대일 같은 단일 값 연관 필드들은 페치 조인해도 페이징 가능 -> 엔티티(데이타)가 중복 검색이 안되는 경우는 가능
+    - 하이버네이트는 경고 로그를 남기고 메모리에서 페이징(매우 위험)
+- 특징
+  - 연관된 엔티티들을 SQL 한 번으로 조회 - 성능 최적화
+  - 엔티티에 직접 적용하는 글로벌 로딩 전략보다 우선함
+    - @OneToMany(fetch = FetchType.Lazy) //글로벌 로딩 전략
+    - 실무에서 글로벌 로딩 전략은 모두 지연 로딩
+  - 최적화가 필요한 곳은 페치 조인 적용
+- **정리**
+  - 모든 것을 페치 조인으로 해결할 수 는 없음
+  - 페치 조인은 객체 그래프(Entity.getSubEntity)를 유지할 때 사용하면 효과적
+  - 여러 테이블을 조인해서 엔티티가 가진 모양이 아닌 전혀 다른 결과를 내야 하면, 페치 조인 보다는 일반 조인을 사용하고 필요한 데이터들만 조회해서 DTO로 반환하는 것이 효과적
+
+### @BatchSize, hibernate.default_batch_fetch_size => N+1 조회 문제 해결
+컬렉션 타입에 추가하는 annotation 으로, 기본 엔티티를 조회하고, 컬렉션의 엔티티 들을 조회할때, 엔티티 하나당 조회하는 것이 아닌, 해당 size만큼의 엔티티들의 컬렉션을 가져온다.
+- ex. Team 엔티티의 members 컬렉션 타입에 @BatchSize(size=3)을 설정하고 한개의 Team.getMembers()할때, team 1,2,3번 엔티티의 members 컬렉션을 조회(영속화)함 
+- 이럴때, 쿼리에 컬렉션의 엔티티의 foreign 키를 in 절로 필터가 추가된 상태로 조회가 된다.
+- 혹은 전체 기본 옵션으로 설정 가능하다.   
+    ```xml 
+      <property name="hibernate.default_batch_fetch_size" value="100"/>      
+    ```   
+
+    ```java
+    @Entity
+    public class Team {
+       @Id
+       @GeneratedValue
+       private Long id;
+       private String name;
+    
+       @BatchSize(size = 3) // 한 쿼리로 가져올때, 컬렉션을 가져올 팀 엔티티의 갯수 -> 3개의 팀의 해당되는 멤버들을 가져온다.
+       @OneToMany(mappedBy = "team")
+       private List<Member> members = new ArrayList<>();
+    
+    
+       void execute(){ 
+         String query = "select t from Team t";
+    
+         List<Team> teams = entityManager.createQuery(query, Team.class)
+                 .getResultList();
+         for (Team team : teams) {
+             System.out.println("team = " + team + ", members size= " + team.getMembers().size());
+             for (Member member : team.getMembers()) {
+                 System.out.println("team "+ team.getName()+" : member = " + member);
+             }
+         }
+       }
+    }
+    ```    
+    ```sql
+    -- 컬렉션 조회 쿼리
+     select
+       m1_0.TEAM_ID,
+       m1_0.id,
+       m1_0.age,
+       m1_0.type,
+       m1_0.username 
+     from
+     Member m1_0
+     where
+     m1_0.TEAM_ID in (?, ?, ?)  
+    ```
+
+#
+### JPQL - 다형성 쿼리, TREAT(JPA 2.1)
+- 다형성 쿼리
+  - 상속 관계 매핑 상태에서 조회 대상을 특정 자식 entity로 한정 가능하다
+  - ex. Item 중에 Book, Movie를 조회해라
+  - [SQL]
+    ```sql
+      select i from ITEM i where i.DTYPE in ('B', 'M')
+    ```
+  - [JPQL]
+    ```jpaql
+      select i from Item i where type(i) in (Book, Movie)
+    ```
+- TREAT
+  - jpql에서 다운캐스팅 처럼 쓸수 있음
+  - 자바의 타입 캐스팅과 유사
+  - 상속 구조에서 부모 타입을 특정 자식 타입으로 다룰 때 사용
+  - FROM, WHERE, SELECT(하이버네이트 지원) 사용
+  - [SQL]
+    ```sql
+      select i.* from ITEM i where i.DTYPE = 'B' and i.auther = 'kim'
+    ```
+  - [JPQL]
+    ```jpaql
+      select i from Item i where treat(i as Book).auther = 'kim'
+    ```
+    
+### JPQL -  엔티티 직접 사용 
+- JPQL에서 엔티티를 직접 사용하면 SQL에서 해당 엔티티의 기본 키 값을 사용
+- ex 1
+  - [JPQL]
+    ```jpaql
+      select count(m,id) from Member m //엔티티의 아이디를 사용
+      select count(m) from Member m //엔티티를 직접 사용
+    ```
+  - [SQL] : jpql 둘다 다음과 같은 SQL 실행
+    ```sql
+      select count(m.ID) as cnt from MEMBER m
+    ```
+- ex 2
+  - [JPQL]
+    ```jpaql
+      select m from Member m where m = :member // .setParameter("member", member)
+      select m from Member m where m.id = :memberId // .setParameter("memberId", memberId)
+    ```
+  - [SQL] : jpql 둘다 다음과 같은 SQL 실행
+    ```sql
+      select m.* from Member m where m.id=?
+    ```
+- ex 3
+  - [JPQL]
+    ```jpaql
+      select m from Member m where m.team = :team // .setParameter("team", team)
+      select m from Member m where m.team.id = :teamId // .setParameter("teamId", teamId)
+    ```
+  - [SQL] : jpql 둘다 다음과 같은 SQL 실행
+    ```sql
+      select m.* from Member m where m.team_id=?
+    ```
+    
+### jpql - Named 쿼리
+- 미리 정의해서 이름을 부여해두고 사용하는 JPQL
+- 정적 쿼리
+- 어노테이션, XML에 정의
+- 애플리케이션 로딩 시점에 초기화 후 재사용 : jpql를 미리 파싱해서 메모리에 로딩 시켜놓고 사용한다.
+- 애플리케이션 로딩 시점에 쿼리를 검증
+- ![poster](./image/named-query.png)
+- ![poster](./image/named-query-xml.png)
+- XML이 항상 우선권을 가진다.
+- 애플리케이션 운영 환경에 따라 다른 XML을 배포 할 수 있다.
+- 스프링 data jpa에서 @Query 어노테이션을 이용해서 interface method위에 선언해서 쓸수 있다.
+  ```java
+  public interface UserRepository extends JpaRepository<User, Long>{
+    @Query("select u from User u where u.emailAddress = ?1")
+    User findByEmailAddress(String emailAddress);
+  }
+  ```
+  
+### 벌크 연산
+- 재고가 10개 미만인 모든 상품의 가격을 10% 상승하려면?
+- JPA 변경 감지 기능으로 실행하려면 너무 많은 SQL실행
+  1. 재고가 10개 미만인 상품을 리스트로 조회한다.
+  2. 상품 엔티티의 가격을 10% 증가한다.
+  3. 트랜잭션 커밋 시점에 변경감지가 동작한다.
+- 변경된 데이터가 100건이라면 100번의 update sql 실행
+- 예제
+  - 쿼리 한 번으로 여러 테이블 로우 변경(엔티티)
+  - executeUpdate()결과는 영향받은 엔티티 수 반환
+  - update, delete 지원
+  - INSERT(insert into ... select, 하이버네이트 지원)
+  ```jpaql
+    update Product p
+    set p.price = p.price * 1.1
+    where p.stockAmount <: stockAmount
+  ```
+  ```java
+  public class Execute{
+    private static void bulkExample(EntityManager entityManager) {
+        String query = "    update Product p " +
+                       "    set p.price = p.price * 1.1 " +
+                       "    where p.stockAmount <: stockAmount";
+
+        int resultCount = entityManager.createQuery(query)
+                .setParameter("stockAmount", 10)
+                .executeUpdate();
+    }
+  }
+  ```
+- 주의사항
+  - 벌크 연산은 영속성 컨텍스트를 무시하고 데이터베이스에 직접 쿼리
+    - **_벌크연산을 실행하면 영속성 컨텍스트를 초기화(flush & clear) 해야한다._**

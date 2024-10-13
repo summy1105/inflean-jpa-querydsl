@@ -16,7 +16,7 @@ public class CustomH2Dialect extends H2Dialect {
         super.initializeFunctionRegistry(functionContributions);
         SqmFunctionRegistry functionRegistry = functionContributions.getFunctionRegistry();
 
-        functionRegistry.register("group_strSum"
+        functionRegistry.register("₩11group_concat"
                 , new StandardSQLFunction("group_concat", StandardBasicTypes.STRING));
     }
 }

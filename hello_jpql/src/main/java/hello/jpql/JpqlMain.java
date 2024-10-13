@@ -6,9 +6,8 @@ import hello.jpql.entity.MemberType;
 import hello.jpql.entity.Team;
 import jakarta.persistence.*;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 public class JpqlMain {
     public static void main(String[] args) {
@@ -24,7 +23,13 @@ public class JpqlMain {
 //            joinExample(entityManager);
 //            typeExample(entityManager);
 //            caseExample(entityManager);
-            functionExample(entityManager);
+//            functionExample(entityManager);
+//            pathExpressionExample(entityManager);
+//            fetchJoinExample(entityManager);
+//            batchSizeExample(entityManager);
+//            entityExample(entityManager);
+//            namedQueryExample(entityManager);
+            bulkExample(entityManager);
 
             tx.commit();
         } catch (Exception e) {
@@ -106,16 +111,21 @@ public class JpqlMain {
 
     private static void initData(EntityManager entityManager) {
 
+        List<Team> teams = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            Team team = new Team();
+            team.setName("team"+ (char)('A'+i));
+            teams.add(team);
+
+            entityManager.persist(team);
+        }
+
         Member memberOuter = new Member();
         memberOuter.setUsername("member");
         memberOuter.setAge(9);
         entityManager.persist(memberOuter);
 
         for (int i = 0; i < 20; i++) {
-            Team team = new Team();
-            team.setName("team"+ (char)('A'+i));
-            entityManager.persist(team);
-
             Member member = new Member();
             if (i % 5 == 0) {
                 member.setUsername("team" + (char) ('A' + i));
@@ -128,7 +138,7 @@ public class JpqlMain {
                 member.setUsername(null);
             }
             member.setAge(10+i);
-            member.changeTeam(team);
+            member.changeTeam(teams.get(i%5));
             entityManager.persist(member);
         }
 
@@ -213,13 +223,137 @@ public class JpqlMain {
 //        String query = "select size(t.members) from Team t";
         // group_concat은 h2가 기본적으로 가지고 있는 함수인데, 사용하려면 방언 등록을 해야함
 //        String query = "select function('group_strSum', m.username) from Member m";
-        String query = "select group_strSumm.username) from Member m";
-
+        String query = "select group_concat(m.username) from Member m";
 
         List resultList = entityManager.createQuery(query)
                 .getResultList();
         for (Object result : resultList) {
             System.out.println("result= " + result);
         }
+    }
+
+    private static void pathExpressionExample(EntityManager entityManager) {
+        initData(entityManager);
+
+//        String query = "select m.team from Member m"; // 묵시적 내부 조인 발생
+//        String query = "select m.team from Member m"; // 단일값 연관 경로 묵시적 내부 조인 발생
+//        String query = "select t.members.size from Team t"; // 컬렉션값 연관 경로 묵시적 내부 조인 발생 -> 사용X
+        String query = "select m.username from Team t join t.members m";
+
+        List resultList = entityManager.createQuery(query)
+                .getResultList();
+        for (Object result : resultList) {
+            System.out.println("result= " + result);
+        }
+    }
+
+    private static void fetchJoinExample(EntityManager entityManager) {
+        initData(entityManager);
+
+        String query = "select m from Member m left join fetch m.team t";
+
+        List<Member> resultList = entityManager.createQuery(query, Member.class)
+                .setMaxResults(2)
+                .getResultList();
+        for (Member result : resultList) {
+            // fetch join으로 회원과 팀을 함께 조회해서 지연 로딩 x
+            System.out.println("result= " + result);
+            System.out.println("result.getTeam() = " + result.getTeam());
+        }
+
+        query = "select t from Team t join fetch t.members";
+//        query = "select t from Team t join fetch t.members as m where m.username = 'member'";// 사용하지 말아야함 // WARN: HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+        List<Team> teams = entityManager.createQuery(query, Team.class)
+//                .setMaxResults(2) // 하이버네이트의 6버전에서는 members의 컬렉션이 완전하지 않아서 getMembers를 할 때, 다시 Member entity를 가져옴
+                .getResultList();
+        System.out.println("teams.size() = " + teams.size());
+        for (Team team : teams) {
+            System.out.println("team = " + team + ", members size= " + team.getMembers().size());
+            for (Member member : team.getMembers()) {
+                System.out.println("team "+ team.getName()+" : member = " + member);
+            }
+        }
+    }
+
+    private static void batchSizeExample(EntityManager entityManager) {
+        initData(entityManager);
+        String query = "select t from Team t";
+
+        List<Team> teams = entityManager.createQuery(query, Team.class)
+                .getResultList();
+        for (Team team : teams) {
+            System.out.println("team = " + team + ", members size= " + team.getMembers().size());
+            for (Member member : team.getMembers()) {
+                System.out.println("team "+ team.getName()+" : member = " + member);
+            }
+        }
+    }
+
+    private static void entityExample(EntityManager entityManager) {
+        initData(entityManager);
+        Member memberForFind = new Member();
+        memberForFind.setId(1L);
+
+        String query = "select m from Member m where m= :member";
+        List<Member> members = entityManager.createQuery(query, Member.class)
+                .setParameter("member", memberForFind)
+                .getResultList();
+        for (Member result : members) {
+            // fetch join으로 회원과 팀을 함께 조회해서 지연 로딩 x
+            System.out.println("result= " + result);
+            System.out.println("result.getTeam() = " + result.getTeam());
+        }
+
+        Team team = new Team();
+        team.setId(1L);
+
+        query = "select m from Member m where m.team=:team";
+        members = entityManager.createQuery(query, Member.class)
+                .setParameter("team", team)
+                .getResultList();
+        for (Member result : members) {
+            // fetch join으로 회원과 팀을 함께 조회해서 지연 로딩 x
+            System.out.println("result= " + result);
+            System.out.println("result.getTeam() = " + result.getTeam());
+        }
+    }
+
+    private static void namedQueryExample(EntityManager entityManager) {
+        initData(entityManager);
+
+        List<Member> members = entityManager.createNamedQuery("Member.findByUsername", Member.class)
+                .setParameter("username", "member1")
+                .getResultList();
+        for (Member result : members) {
+            // fetch join으로 회원과 팀을 함께 조회해서 지연 로딩 x
+            System.out.println("result= " + result);
+        }
+    }
+
+    private static void bulkExample(EntityManager entityManager) {
+        initData(entityManager);
+        Member member = entityManager.find(Member.class, 1);
+        System.out.println(member);
+
+        String query = "update Member m set m.age = m.age + 30 where m.age <= :age";
+        int updateResult = entityManager.createQuery(query)
+                .setParameter("age", 15)
+                .executeUpdate();
+        System.out.println("updateResult = " + updateResult);
+
+        Member afterMember = entityManager.find(Member.class, 1);
+        System.out.println("afterMember = " + afterMember);// flush&Clear를 안하면 변경된 값이 반영되어 있지 않다.
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Member afterFlushMember = entityManager.find(Member.class, 1);
+        System.out.println("afterFlushMember = " + afterFlushMember);
+
+//        List<Member> members = entityManager.createQuery("select m from Member m order by m.age", Member.class)
+//                .getResultList();
+//        for (Member result : members) {
+//            System.out.println("result= " + result);
+//        }
     }
 }
