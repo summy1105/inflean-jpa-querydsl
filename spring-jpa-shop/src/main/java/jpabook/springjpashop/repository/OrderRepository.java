@@ -90,4 +90,15 @@ public class OrderRepository {
         TypedQuery<Order> query = entityManager.createQuery(cq).setMaxResults(1000); //최대 1000 건
         return query.getResultList();
     }
+
+    // 장: 재상용성 있음
+    // 단: 엔티티의 모든 컬럼의 데이터를 가져옴(메모리 네트워크 비용이 상대적으로 높음)
+    public List<Order> findAllWithMemberDelivery() {
+        String query = "select o from Order o" +
+                " join fetch o.member m" +
+                " join fetch o.delivery d";
+        List<Order> resultList = entityManager.createQuery(query, Order.class).getResultList();
+        return resultList;
+    }
+
 }

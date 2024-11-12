@@ -64,3 +64,28 @@
 - entityManager.merge()로 실행해도, 파라미터로 넘긴 준영속 엔티티는 영속되지 않는다(영속성 컨텐스트가 감지하지 않는다.)
 - 주의점 : 변경 감지 기능을 사용하면 원하는 속성만 선택해서 변경할 수 있지만, 병합을 사용하면 모든 속성이 변경된다.(병합은 모든 필드를 교체한다.)
 - 잘못 데이터를 셋팅하면, 데이터 분실 위험이 크기 때문에, 머지사용을 지양하고, 변경감지를 사용한다.
+
+#### 성능최적화
+- 주의 1: 엔티티를 직접 노출할 때는 양방향 연관관계가 걸린 곳은 꼭! 한곳을 @JsonIgnore처리해야한다. 안그러면 양쪽을 서로 호출하면서 무한루프 발생
+  - @JsonIgnore를 사용하면  Type definition error:... 발생 -> @..ToOne 필드에 프록시 객체로 미리 생성-> type변환시 에러 : Hibernate5Module사용(Spring boot 3에서는 javax대신 jakarta 사용으로 implement할 라이브러리가 다름)
+- 주의 2: 지연로딩을 피하기 위해 즉시 로딩을 설정하면 안된다.
+  - 즉시로딩이 필요한 경우 fetch join을 사용하자
+
+#### Repository에서 DTO로 직접조회
+```java
+entityManager.createQuery("select new jpabook.jpashop.repository.order.simplequery.OrderSimpleQueryDto(o.id, m.name, o.orderDate, o.status, d.address)" +
+        " from Order o" +
+        " join o.member m" +
+        " join o.delivery d", OrderSimpleQueryDto.class)
+        .getResultList();
+```
+- 일반적으로 SQL을 사용할 때 처럼 원하는 값을 선택해서 조회, dto객체의 생성자 사용
+- select 절에서 원하는 데이터만 직접 선택 -> app 네트웍용량 최적화(생각보다 미미함)
+- 리포지토리 재사용성이 떨어짐
+- api의 스펙이 repository에서 부터 정의 된다는 단점
+
+## 쿼리 방식 선택 권장 순서
+1. 우선 엔티티를 DTO로 변환하는 방법을 선택한다.
+2. 필요하면 fetch join으로 성능을 최적화 한다. -> 대부분의 성능 이슈가 해결된다.
+3. 그래도 안되면 DTO로 직접 조회하는 방법을 사용한다.
+4. 최후의 방법은 JPA가 제공하는 네이티브 SQL이나 스프링 JDBC Template을 사용해서 SQL을 직접 사용한다.
