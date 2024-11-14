@@ -1,10 +1,7 @@
 package jpabook.springjpashop.service;
 
-import jpabook.springjpashop.domain.Member;
-import jpabook.springjpashop.domain.item.Book;
 import jpabook.springjpashop.domain.item.Item;
 import jpabook.springjpashop.repository.ItemRepository;
-import jpabook.springjpashop.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

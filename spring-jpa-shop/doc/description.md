@@ -89,3 +89,75 @@ entityManager.createQuery("select new jpabook.jpashop.repository.order.simpleque
 2. 필요하면 fetch join으로 성능을 최적화 한다. -> 대부분의 성능 이슈가 해결된다.
 3. 그래도 안되면 DTO로 직접 조회하는 방법을 사용한다.
 4. 최후의 방법은 JPA가 제공하는 네이티브 SQL이나 스프링 JDBC Template을 사용해서 SQL을 직접 사용한다.
+
+
+#### fetch join
+- sql이 1번만 실행되도 됨
+- `distinct`를 사용한 이유는 1대다 조인이 있으므로 데이터베이스 row가 증가한다. 그 결과 같은 order 엔티티의 조회 수도 증가하게 된다. JPA의 distinct는 SQL에 distinct를 추가하고, 더해서 같은 엔티티가 조회되면, 애플리케이션에서 중복을 걸러준다(hibernate6버전이상에서는 자동으로 적용). 이 예에서 order가 컬렉션 페치 조인 때문에 중복 조회 되는 것을 막아준다.
+- 단점 : 페이징 불가 `WARN - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory`
+  - 1대다 fetch join은 페이징이 불가함
+- 중요1 : 컬렉션 페치조인을 사용하면 페이징이 불가능. 모든 데이터를 db에서 읽어오고, 메모리에서 페이징을 해버림(메모리 터짐).
+- 중요2 : 컬렉션 페치조인은 1개만 사용할 수 있다. 컬렉션 둘 이상에 페치조인을 사용하면 안된다. 데이터가 부정확하게 조회될 수 있다.
+
+
+#### 페이징+컬렉션 엔티티 조회 문제 해결방법
+1. *ToOne 관계는 모두 페치조인한다. *ToOne관계는 row수를 증가시키지 않으므로 페이징 쿼리에 영향을 주지 않는다.
+2. 컬렉션은 지연로딩으로 조회한다.
+3. 지연로딩 성능 최적화를 위해 `hibernate.default_batch_fetch_size`, `@BatchSize`를 적용한다.
+  - hibernate.default_batch_fetch_size : 글로벌 설정
+  - @BatchSize:개별 최적화
+  - 이 옵션을 사용하면 컬렉션이나, 프록시 객체를 한꺼번에 설정한 size만큼 IN쿼리로 조회한다.
+
+#### hibernate.default_batch_fetch_size, @BatchSize
+- 장점
+  1. 쿼리 호출 수가 `1+N`-> `1+1`로 최적화 된다
+  2. 조인보다 DB데이터 전송량이 최적화 된다.(order와 orderItem을 조인하면 Order가 OrderItem만큼 중복해서 조회된다.)
+  3. fetch join 방식과 비교해서 쿼리 호출 수가 약간 증가하지만, DB데이터 전송량이 감소한다.
+  4. 컬렉션 페치 조인은 페이징이 불가능 하지만 이 방법은 페이징이 가능하다.
+- 결론 : *ToOne 관계는 페치 조인해도 페이징에 영향을 주지 않는다. 따라서, ToOne관계는 페치조인으로 쿼리 수를 줄여서 해결하고, 나머지는 `hibernate.default_batch_fetch_size`로 최적화하자
+- 참고 
+  - `default_batch_fetch_size` 크기는 100~1000사이를 선택하는 것을 권장한다.(보통 in 절에 파라미터 max 갯수가 1000개)
+  - 애플리케이션은 100이든 100이든 결국 전체 데이터를 로딩해야 하므로 메모리 사용량이 같다. 1000으로 설정하는 것이 성능상 가장 좋지만, 결국 DB든 애플리케이션이든 순간 부하를 어디까지 견딜 수 있는지로 결정하면 된다.
+
+
+#### 엔티티가 중복되게 조회(엔티티 대신 dto로 생성) 최적화
+- 장점 : Query 1번
+- 단점 : DB에서 중복데이터가 추가되므로, 상황에 따라 쿼리2번 조회 보다 느릴수 있다. 애플리케이션에서 추가 작업, 페이징 불가
+
+
+### 참고
+```text
+ 개발자는 성능 최적화와 코드 복잡도 사이에서 줄타기를 해야 한다. 
+ 항상 그런 것은 아니지만, 보통 성틍 최적화는 단순한 코드를 복잡한 코드로 몰고 간다.
+
+ 엔티티 조회 방식은 jpa가 많은 부분을 최적화 해주기 때문에, 단순한 코드를 유지하면서, 성능을 최적화 할 수 있다.
+ dto조회 방식은 sql을 직접 다루는 것과 유사하기 때문에, 둘 사이에 줄타기를 해야한다.
+```
+
+### DTO 조회 방식의 선택지
+- 쿼리가 1번 실행된다고 항상 좋은 방법은 아니다
+- 특정 주문 1건만 조회 하면 v4방식(*ToOne으로만 이루어진 fetch join후 collection들 조회)도 성능이 잘 나옴
+- v5방식(*ToOne fetch join후 collection들을 in절을 사용하여 한꺼번에 조회, 메모리로 각각 collection set)은 코드가 복잡하지만, V4의 N+1문제 해결
+- v6방식은 쿼리가 한번 실행되지만, order기준으로 페이징이 불가하다(OrderItem기준으로 가능)
+
+
+### Open Session in View (OSIV)
+- Open Session in View : 하이버네이트에서 명칭
+- Open EntityManager in View : JPA에서 명칭
+- ![poster](./img/osiv.png)
+- spring 시작할때 출력되는 warn로그 `2024-11-14T22:43:58.048+09:00  WARN 72896 --- [  restartedMain] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning`
+- spring.jpa.open-in-view:true -> 코드상 @Transactional범위를 벗어나도, DB connection을 유지함. entity의 lazy loading이 일어나는 시점이 @Transactional범위를 넘어가는 케이스가 있는 경우 필요
+- spring.jpa.open-in-view의 default가 true여서, api응답이 끝날 때 까지(view template나 api controller등에서) 지연로딩이 가능했던 것
+- 지연로딩은 영속성 컨텍스트가 생존해 있어야 하고, 영속성 컨텍스트는 기본적으로 db connection을 유지함
+- 이 전략은 실시간 트래픽이 중요한 앱에서는 커넥션이 모자르는 경우가 생길수 있다.(장애발생)
+- osiv를 false로 하면 모든 지연로딩을 트랜잭션안에서 처리해야한다.
+
+###
+##### 커맨드와 쿼리 분리
+- 실무에서 osiv를 끈 상태로 복잡성을 관리하는 좋은 방법
+- 보통 비즈니스 로직은 특정 엔티티 몇개를 등록하거나 수정하는 것이므로 성능이 크게 문제가 되지 않는다. 그런데 복잡한 화면을 출력하기 위한 쿼리는 화면에 맞추어 성능을 최적화 하는 것이 중요, 하지만 복잡성에 비해 핵심 비즈니스에 큰 영향을 주는 것은 아니다.
+- 크고 복잡한 애플리케이션을 개발한다면, 이 둘의 관심사를 명확하게 분리하는 선택은 유지보수 관점에서 충분히 의미있다.
+- ex: OrderService
+  - OrderService : 핵심 비즈니스 로직
+  - OrderQueryService : 화면이나 api에 맞춘 서비스(주로 읽기 전용 트랜잭션 사용)
+- 고객 서비스는 실시간 api는 osiv를 끄고 admin처럼 커넥션을 많이 사용하지 않는 곳에서는 osiv를 켠다

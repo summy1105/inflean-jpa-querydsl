@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-class ResultResponse<T> {
+public class ResultResponse<T> {
     private long count;
     private T data;
 }

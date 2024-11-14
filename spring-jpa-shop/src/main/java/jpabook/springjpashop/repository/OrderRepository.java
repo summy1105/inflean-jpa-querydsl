@@ -101,4 +101,30 @@ public class OrderRepository {
         return resultList;
     }
 
+    public List<Order> findAllWithMemberDelivery(int offset, int limit) {
+        String query = "select o from Order o" +
+                " join fetch o.member m" +
+                " join fetch o.delivery d";
+        List<Order> resultList = entityManager.createQuery(query, Order.class)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList();
+
+        return resultList;
+    }
+
+    public List<Order> findAllWithItem() {
+        // hibernate 6버전 부터 distint없어도 사용하는 것처럼 최적화해서 order 엔티티가 2개 생성됨
+        // 최대 단점 : 페이징 안됨
+        String query = "select distinct o from Order o" +
+                " join fetch o.member m" +
+                " join fetch o.delivery d" +
+                " join fetch o.orderItems oi" +
+                " join fetch oi.item i";
+        List<Order> resultList = entityManager.createQuery(query, Order.class)
+                .setFirstResult(1)
+                .setMaxResults(1)
+                .getResultList();
+        return resultList;
+    }
 }
