@@ -1,10 +1,12 @@
 package jpabook.springjpashop.repository;
 
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
-import jpabook.springjpashop.domain.Member;
 import jpabook.springjpashop.domain.Order;
+import jpabook.springjpashop.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -18,12 +20,42 @@ public class OrderRepository {
 
     private final EntityManager entityManager;
 
+
     public void save(Order order) {
         entityManager.persist(order);
     }
 
     public Order findOne(Long id) {
         return entityManager.find(Order.class, id);
+    }
+
+    public List<Order> findAll(OrderSearch orderSearch) {
+        JPAQueryFactory query = new JPAQueryFactory(entityManager);
+        QOrder order = QOrder.order;
+        QMember member = QMember.member;
+
+        List<Order> result = query.select(order)
+                .from(order)
+                .join(order.member, member)
+                .where(statusEq(orderSearch.getOrderStatus())
+                        , nameLike(orderSearch.getMemberName()))
+                .limit(100)
+                .fetch();
+        return result;
+    }
+
+    private BooleanExpression statusEq(OrderStatus statusCond) {
+        if (statusCond == null) {
+            return null;
+        }
+        return QOrder.order.status.eq(statusCond);
+    }
+
+    private BooleanExpression nameLike(String memberName) {
+        if (!StringUtils.hasText(memberName)) {
+            return null;
+        }
+        return QMember.member.name.like(memberName);
     }
 
     public List<Order> findAllByString(OrderSearch orderSearch) {
