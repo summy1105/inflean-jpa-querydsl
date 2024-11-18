@@ -1,0 +1,82 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.11'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'study'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    queryDslVersion = '5.1.0'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    //Querydsl 추가
+    implementation "com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta"
+    annotationProcessor "com.querydsl:querydsl-apt:${dependencyManagement.importedProperties['querydsl.version']}:jakarta"
+    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
+    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
+    implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.2'
+
+    compileOnly 'org.projectlombok:lombok'
+    runtimeOnly 'com.h2database:h2'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+def generatedDir = file("src/main/generated") // Q 엔티티 생성 디렉터리
+
+clean {
+//    delete file('src/main/generated')
+    delete file('out')
+}
+
+tasks.register("generateQEntities", JavaCompile) {
+    description = "Generate Q-classes for QueryDSL"
+    group = "other"
+
+    source = sourceSets.main.java.srcDirs
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory.set(generatedDir)
+    options.annotationProcessorPath = configurations.annotationProcessor
+    options.compilerArgs = [
+            "-proc:only", // Annotation Processor만 실행
+//            "-Aquerydsl.entityAccessors=true",
+//            "-Aquerydsl.generatedSourcesDir=${generatedDir}"
+    ]
+}
+
+tasks.register("cleanQEntities") {
+    description = "Clean Q-classes for QueryDSL"
+    group = "other"
+
+    doLast {
+        delete file('src/main/generated')
+    }
+}
+
