@@ -67,7 +67,7 @@ tasks.register("generateQEntities", JavaCompile) {
     options.compilerArgs = [
             "-proc:only", // Annotation Processor만 실행
 //            "-Aquerydsl.entityAccessors=true",
-//            "-Aquerydsl.generatedSourcesDir=${generatedDir}"
+            "-Aquerydsl.generatedSourcesDir=${generatedDir}"
     ]
 }
 
